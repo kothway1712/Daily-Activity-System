@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ရုံးလုပ်ငန်း ဆောင်ရွက်ချက်များ မှတ်တမ်းတင်စနစ် (Access Control & Approval System)</title>
+    <!-- Tailwind CSS for elegant design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for professional icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts for Padauk font (Burmese) -->
+    <link href="https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase Compatibility SDKs (v10.8.0) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body {
+            font-family: 'Padauk', sans-serif;
+        }
+        /* Print Styles for official looking reports */
+        @media print {
+            body {
+                background-color: white !important;
+                color: black !important;
+            }
+            nav, #access-banner, #filters-section, .no-print, #pending-requests-banner {
+                display: none !important;
+            }
+            main {
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+            }
+            .shadow-sm, .shadow-xl, .shadow-2xl {
+                box-shadow: none !important;
+                border: none !important;
+            }
+            table {
+                border: 1px solid #cbd5e1 !important;
+            }
+            th {
+                background-color: #f1f5f9 !important;
+                color: black !important;
+            }
+            td, th {
+                border-bottom: 1px solid #cbd5e1 !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Loading Overlay (Firebase ချိတ်ဆက်နေစဉ် ပြသရန်) -->
+    <div id="loading-screen" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center text-white">
+        <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h3 class="font-bold text-lg">Cloud Database နှင့် ချိတ်ဆက်နေပါသည်...</h3>
+        <p class="text-slate-400 text-xs mt-1">ခဏတာ စောင့်ဆိုင်းပေးပါရန်</p>
+    </div>
+
+    <!-- LOGIN & REGISTER SECTION (စနစ်အတွင်းသို့ စတင်ဝင်ရောက်ရန်) -->
+    <div id="auth-screen" class="hidden flex-grow flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-slate-100 transition-all">
+            <!-- Auth Header -->
+            <div class="bg-indigo-900 text-white p-6 text-center">
+                <div class="bg-white/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-3xl mb-3 shadow-inner">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h2 class="font-bold text-xl">လုပ်ငန်းမှတ်တမ်းစနစ်(DOST)</h2>
+                <p class="text-xs text-indigo-200 mt-1">အသုံးပြုခွင့်ရရှိရန် စနစ်အတွင်းသို့ ဝင်ရောက်ပါ</p>
+            </div>
+
+            <!-- Login Form Tab -->
+            <div id="login-tab" class="p-6 space-y-4">
+                <div class="flex border-b border-slate-100 pb-3">
+                    <button onclick="switchAuthTab('login')" class="w-1/2 text-center py-2 font-bold text-indigo-600 border-b-2 border-indigo-600">ဝင်ရောက်ရန် (Login)</button>
+                    <button onclick="switchAuthTab('register')" class="w-1/2 text-center py-2 font-bold text-slate-400 hover:text-slate-600">အကောင့်သစ်ဖွင့်ရန်</button>
+                </div>
+
+                <form onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">အသုံးပြုသူအမျိုးအစား</label>
+                        <select id="login-role" onchange="toggleLoginFields()" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            <option value="staff">အရာရှိ (Staff Officer)</option>
+                            <option value="admin">ခွင့်ပြုချက်ရရှိသူ (Admin/Commander)</option>
+                        </select>
+                    </div>
+
+                    <!-- Staff Username (Hidden for Admin) -->
+                    <div id="login-user-field">
+                        <label class="block text-sm font-bold text-slate-700 mb-1">အမည် (Username)</label>
+                        <input type="text" id="login-username" placeholder="မိမိအမည် ရိုက်ထည့်ပါ" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label id="login-passcode-label" class="block text-sm font-bold text-slate-700 mb-1">လျှို့ဝှက်ကုဒ် (Passcode)</label>
+                        <input type="password" id="login-passcode" required placeholder="••••••" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <p id="login-hint" class="text-xs text-slate-400 mt-1">Admin မူလ Passcode သည် <span class="font-semibold text-indigo-600">admin123</span> ဖြစ်ပါတယ်</p>
+                    </div>
+
+                    <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-right-to-bracket"></i> စနစ်သို့ ဝင်ရောက်မည်
+                    </button>
+                </form>
+            </div>
+
+            <!-- Register Form Tab (Staff Only) -->
+            <div id="register-tab" class="hidden p-6 space-y-4">
+                <div class="flex border-b border-slate-100 pb-3">
+                    <button onclick="switchAuthTab('login')" class="w-1/2 text-center py-2 font-bold text-slate-400 hover:text-slate-600">ဝင်ရောက်ရန် (Login)</button>
+                    <button onclick="switchAuthTab('register')" class="w-1/2 text-center py-2 font-bold text-indigo-600 border-b-2 border-indigo-600">အကောင့်သစ်ဖွင့်ရန်</button>
+                </div>
+
+                <form onsubmit="handleRegister(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">အမည် (Username) <span class="text-rose-500">*</span></label>
+                        <input type="text" id="reg-username" required placeholder="ဥပမာ - မောင်မောင်" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">ဌာနခွဲ / ကဏ္ဍ <span class="text-rose-500">*</span></label>
+                        <select id="reg-dept" required class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            <option value="ဂြိုဟ်တုစနစ်">ဂြိုဟ်တုစနစ်</option>
+                            <option value="ဂြိုဟ်တုလုပ်ဆောင်ချက်">ဂြိုဟ်တုလုပ်ဆောင်ချက်</option>
+                            <option value="ဂြိုဟ်တုဆက်သွယ်ရေး">ဂြိုဟ်တုဆက်သွယ်ရေး</option>               
+                            <option value="ဂြိုဟ်တုအချက်အလက်ခွဲခြမ်းလေ့လာရေး">ဂြိုဟ်တုအချက်အလက်ခွဲခြမ်းလေ့လာရေး</option>
+                            <option value="ဂြိုဟ်တုအသုံးချနယ်ပယ်">ဂြိုဟ်တုအသုံးချနယ်ပယ်</option>
+                            <option value="အခြား">အခြား</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">လျှို့ဝှက်ကုဒ် သတ်မှတ်ရန် (Passcode) <span class="text-rose-500">*</span></label>
+                        <input type="password" id="reg-passcode" required placeholder="ဂဏန်း သို့မဟုတ် စာသား" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+
+                    <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-user-plus"></i> အကောင့်သစ် မှတ်ပုံတင်မည်
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP SCREEN (ဝင်ရောက်ပြီးမှသာ မြင်တွေ့ရမည့်အပိုင်း) -->
+    <div id="app-screen" class="hidden flex-grow flex flex-col">
+        <!-- ထိပ်စီးပိုင်း (Navigation & Header) -->
+        <nav class="bg-indigo-900 text-white shadow-lg sticky top-0 z-50 no-print">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-white text-indigo-900 p-2 rounded-lg font-bold text-xl shadow">
+                            <i class="fa-solid fa-briefcase"></i>
+                        </div>
+                        <div>
+                            <span class="font-bold text-lg block tracking-wide">ရုံးလုပ်ငန်း မှတ်တမ်း(DOST)</span>
+                            <span class="text-[10px] text-indigo-200 flex items-center gap-1">
+                                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span> 🟢 Online Cloud Sync Active
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3">
+                        <!-- User Status Info with Profile Edit option -->
+                        <button onclick="openProfileModal()" class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-indigo-800 transition text-right no-print" title="ကိုယ်ပိုင်အချက်အလက် ပြင်ဆင်ရန်">
+                            <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white shadow">
+                                <i class="fa-solid fa-user-gear text-sm"></i>
+                            </div>
+                            <div class="hidden md:flex flex-col items-end">
+                                <span id="nav-user-name" class="font-bold text-sm text-white"></span>
+                                <span id="nav-user-role" class="text-xs text-indigo-300 flex items-center gap-1">
+                                    <span id="nav-user-role-text"></span> <i class="fa-solid fa-pen text-[10px]"></i>
+                                </span>
+                            </div>
+                        </button>
+
+                        <!-- Action Buttons -->
+                        <div class="flex space-x-2">
+                            <button id="admin-db-btn" onclick="openBackupModal()" class="hidden bg-indigo-700 hover:bg-indigo-600 px-3 py-2 rounded-lg text-sm flex items-center gap-1 transition">
+                                <i class="fa-solid fa-database"></i> <span class="hidden lg:inline">ဒေတာ ထိန်းသိမ်းမှု</span>
+                            </button>
+                            <button onclick="openAddModal()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-1 shadow-md transition">
+                                <i class="fa-solid fa-plus"></i> လုပ်ငန်းအသစ်ထည့်ရန်
+                            </button>
+                            <button onclick="handleLogout()" class="bg-rose-700 hover:bg-rose-600 px-3 py-2 rounded-lg text-sm flex items-center gap-1 transition" title="စနစ်မှ ထွက်ရန်">
+                                <i class="fa-solid fa-power-off"></i> <span class="hidden md:inline">ထွက်ရန်</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- PRINT ONLY HEADER (ရိုက်နှိပ်ထုတ်ယူချိန်တွင်သာ ပေါ်မည့် ခေါင်းစဉ်) -->
+        <div class="hidden print:block text-center my-6 border-b-2 border-slate-800 pb-4">
+            <h1 class="text-2xl font-bold text-slate-900">ရုံးလုပ်ငန်းဆောင်ရွက်ချက်များ အစီရင်ခံစာမှတ်တမ်း</h1>
+            <p id="print-report-meta" class="text-sm text-slate-600 mt-2">ထုတ်ယူသည့်ရက်စွဲ - </p>
+            <p id="print-report-user" class="text-sm text-slate-600">ပြုစုသူ - </p>
+        </div>
+
+        <!-- အဓိက အကြောင်းအရာ (Main Content) -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+
+            <!-- ပြင်ဆင်ခွင့်တောင်းခံလွှာများရှိပါက Admin အတွက် သတိပေးစာတန်း -->
+            <div id="pending-requests-banner" class="hidden no-print"></div>
+
+            <!-- ဒေတာ ကန့်သတ်ချက် သတိပေးချက်စာတန်း -->
+            <div id="access-banner" class="mb-6 p-4 rounded-xl flex items-center justify-between no-print">
+                <!-- Banner content will change dynamically based on role -->
+            </div>
+
+            <!-- စာရင်းဇယား အနှစ်ချုပ် (Status Dashboard) -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                    <div>
+                        <span id="dash-total-label" class="text-slate-400 text-sm block font-medium">လုပ်ငန်းအားလုံး</span>
+                        <span id="total-count" class="text-3xl font-bold text-slate-800">0</span>
+                    </div>
+                    <div class="bg-indigo-50 text-indigo-600 p-3 rounded-xl text-xl no-print">
+                        <i class="fa-solid fa-list-check"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                    <div>
+                        <span class="text-slate-400 text-sm block font-medium">ဆောင်ရွက်ရန်ကျန်</span>
+                        <span id="pending-count" class="text-3xl font-bold text-amber-600">0</span>
+                    </div>
+                    <div class="bg-amber-50 text-amber-600 p-3 rounded-xl text-xl no-print">
+                        <i class="fa-regular fa-clock"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                    <div>
+                        <span class="text-slate-400 text-sm block font-medium">လုပ်ဆောင်ဆဲ</span>
+                        <span id="progress-count" class="text-3xl font-bold text-blue-600">0</span>
+                    </div>
+                    <div class="bg-blue-50 text-blue-600 p-3 rounded-xl text-xl no-print">
+                        <i class="fa-solid fa-spinner animate-spin"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                    <div>
+                        <span class="text-slate-400 text-sm block font-medium">ပြီးစီးမှု</span>
+                        <span id="completed-count" class="text-3xl font-bold text-emerald-600">0</span>
+                    </div>
+                    <div class="bg-emerald-50 text-emerald-600 p-3 rounded-xl text-xl no-print">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ရှာဖွေခြင်းနှင့် စစ်ထုတ်ခြင်း ကဏ္ဍ (Filters Section) -->
+            <div id="filters-section" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-8 no-print">
+                <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-700">
+                    <i class="fa-solid fa-filter text-indigo-600"></i> ရှာဖွေရန်နှင့် စစ်ထုတ်ရန်
+                </h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <!-- Search bar (Search Task or Staff Name based on role) -->
+                    <div class="relative">
+                        <i class="fa-solid fa-search absolute left-3 top-3.5 text-slate-400"></i>
+                        <input type="text" id="search-input" oninput="renderTasks()" placeholder="ရှာဖွေရန်..." class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                    </div>
+                    <!-- Filter by Date (အပတ်စဉ် / လစဉ် / စိတ်ကြိုက်ရက်စွဲ ပြန်လည်ကြည့်ရှုရန်) -->
+                    <div class="space-y-2">
+                        <select id="filter-date-range" onchange="toggleCustomDateFields(); renderTasks();" class="w-full px-3 py-2.5 border border-indigo-200 bg-indigo-50/50 text-indigo-900 font-bold rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                            <option value="all" selected>ရက်စွဲအားလုံး</option>
+                            <option value="today">ယနေ့မှတ်တမ်း (Today)</option>
+                            <option value="week">ယခုအပတ်မှတ်တမ်း (Weekly)</option>
+                            <option value="month">ယခုလမှတ်တမ်း (Monthly)</option>
+                            <option value="custom">စိတ်ကြိုက်ရက်စွဲ (Custom / Backdate)</option>
+                        </select>
+                        <!-- စိတ်ကြိုက် ရက်စွဲ ရွေးချယ်ရန် Dynamic Inputs -->
+                        <div id="custom-date-inputs" class="hidden flex items-center gap-1 bg-indigo-50/60 p-1.5 rounded-xl border border-indigo-100 transition-all duration-300">
+                            <input type="date" id="filter-start-date" onchange="renderTasks()" title="စတင်မည့်ရက်" class="w-[45%] px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none bg-white">
+                            <span class="text-[10px] text-slate-500 font-bold w-[10%] text-center">မှ</span>
+                            <input type="date" id="filter-end-date" onchange="renderTasks()" title="ပြီးဆုံးမည့်ရက်" class="w-[45%] px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none bg-white">
+                        </div>
+                    </div>
+                    <!-- Filter by Department -->
+                    <div id="filter-dept-container">
+                        <select id="filter-dept" onchange="renderTasks()" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                            <option value="">ဌာနခွဲအားလုံး</option>
+                            <option value="ဂြိုဟ်တုစနစ်">ဂြိုဟ်တုစနစ်</option>
+                            <option value="ဂြိုဟ်တုလုပ်ဆောင်ချက်">ဂြိုဟ်တုလုပ်ဆောင်ချက်</option>
+                            <option value="ဂြိုဟ်တုဆက်သွယ်ရေး">ဂြိုဟ်တုဆက်သွယ်ရေး</option>
+                            <option value="ဂြိုဟ်တုအချက်အလက်ခွဲခြမ်းလေ့လာရေး">ဂြိုဟ်တုအချက်အလက်ခွဲခြမ်းလေ့လာရေး</option>
+                            <option value="ဂြိုဟ်တုအသုံးချနယ်ပယ်">ဂြိုဟ်တုအသုံးချနယ်ပယ်</option>
+                            <option value="အခြား">အခြား</option>
+                        </select>
+                    </div>
+                    <!-- Filter by Status -->
+                    <div>
+                        <select id="filter-status" onchange="renderTasks()" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                            <option value="">အခြေအနေအားလုံး</option>
+                            <option value="pending">မစရသေးပါ</option>
+                            <option value="progress">လုပ်ဆောင်ဆဲ</option>
+                            <option value="completed">ပြီးစီးပါပြီ</option>
+                        </select>
+                    </div>
+                    <!-- Filter by Priority -->
+                    <div>
+                        <select id="filter-priority" onchange="renderTasks()" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                            <option value="">အရေးကြီးမှုအားလုံး</option>
+                            <option value="high">အရေးကြီး (High)</option>
+                            <option value="medium">ပုံမှန် (Medium)</option>
+                            <option value="low">မအရေးကြီး (Low)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- လုပ်ငန်းမှတ်တမ်းများစာရင်း (Task List) -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-table-list text-indigo-600"></i> ဆောင်ရွက်ချက်များ မှတ်တမ်းစာရင်း
+                    </h3>
+                    <div class="flex items-center gap-3">
+                        <span id="showing-count" class="text-sm text-slate-500 font-medium">ဆောင်ရွက်ချက် ၀ ခု ပြသနေသည်</span>
+                        <!-- Print Button -->
+                        <button onclick="printReport()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition no-print">
+                            <i class="fa-solid fa-print"></i> PDF/ရိုက်နှိပ်ထုတ်ရန်
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 bg-slate-50/50">
+                                <th class="py-4 px-6 text-center w-16">အမှတ်စဉ်</th>
+                                <th class="py-4 px-6">ဆောင်ရွက်ချက်အသေးစိတ်</th>
+                                <th class="py-4 px-6 w-40">ဌာန / ကဏ္ဍ</th>
+                                <th class="py-4 px-6 w-36">အရေးကြီးမှု</th>
+                                <th class="py-4 px-6 w-40">တာဝန်ယူသူ</th>
+                                <th class="py-4 px-6 w-40">အခြေအနေ</th>
+                                <th class="py-4 px-6 w-48 text-right no-print">လုပ်ဆောင်ချက်</th>
+                            </tr>
+                        </thead>
+                        <tbody id="task-list" class="divide-y divide-slate-100">
+                            <!-- Tasks will be rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- အချက်အလက်မရှိပါက ပြသမည့်နေရာ -->
+                <div id="empty-state" class="hidden flex flex-col items-center justify-center py-16 px-4">
+                    <div class="bg-slate-100 p-4 rounded-full text-slate-400 text-4xl mb-4">
+                        <i class="fa-solid fa-folder-open"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-600 text-lg mb-1">မှတ်တမ်းအချက်အလက်မရှိပါ</h3>
+                    <p class="text-slate-400 text-sm text-center">လုပ်ငန်းမှတ်တမ်းများ ထည့်သွင်းထားခြင်း မရှိသေးပါ သို့မဟုတ် Filter ရှာဖွေမှုနှင့် ကိုက်ညီမှုမရှိပါ။</p>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal: လုပ်ငန်းအသစ်ထည့်ရန်နှင့် ပြင်ဆင်ရန် (Add / Edit Task Modal) -->
+    <div id="task-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden transform transition-all duration-300">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 bg-indigo-900 text-white flex justify-between items-center">
+                <h3 id="modal-title" class="font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-plus-circle"></i> လုပ်ငန်းဆောင်ရွက်ချက်အသစ် ထည့်သွင်းရန်
+                </h3>
+                <button onclick="closeTaskModal()" class="text-indigo-200 hover:text-white transition">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
+            </div>
+            <!-- Modal Body Form -->
+            <form id="task-form" onsubmit="saveTask(event)" class="p-6 space-y-4">
+                <input type="hidden" id="task-id">
+                
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">လုပ်ငန်းခေါင်းစဉ် <span class="text-rose-500">*</span></label>
+                    <input type="text" id="task-title" required placeholder="ဥပမာ - လပတ်အစီရင်ခံစာ ရေးသားခြင်း" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">အသေးစိတ်ဖော်ပြချက်</label>
+                    <textarea id="task-desc" rows="3" placeholder="လုပ်ဆောင်ချက်နှင့် ပတ်သက်သည့် အသေးစိတ် အချက်အလက်များ..." class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">ဌာနခွဲ / ကဏ္ဍ <span class="text-rose-500">*</span></label>
+                        <select id="task-dept" required class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                            <option value="ဂြိုဟ်တုစနစ်">ဂြိုဟ်တုစနစ်</option>
+                            <option value="ဂြိုဟ်တုလုပ်ဆောင်ချက်">ဂြိုဟ်တုလုပ်ဆောင်ချက်</option>
+                            <option value="ဂြိုဟ်တုဆက်သွယ်ရေး">ဂြိုဟ်တုဆက်သွယ်ရေး</option>
+                            <option value="ဂြိုဟ်တုအချက်အလက်ခွဲခြမ်းလေ့လာရေး">ဂြိုဟ်တုအချက်အလက်ခွဲခြမ်းလေ့လာရေး</option>
+                            <option value="ဂြိုဟ်တုအသုံးချနယ်ပယ်">ဂြိုဟ်တုအသုံးချနယ်ပယ်</option>
+                            <option value="အခြား">အခြား</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">အရေးကြီးမှုအဆင့် <span class="text-rose-500">*</span></label>
+                        <select id="task-priority" required class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                            <option value="low">နိမ့် (Low)</option>
+                            <option value="medium" selected>လတ် (Medium)</option>
+                            <option value="high">မြင့် (High)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">တာဝန်ယူဆောင်ရွက်သူ <span class="text-rose-500">*</span></label>
+                        <input type="text" id="task-assignee" required placeholder="ဥပမာ - ဦးကျော်ကျော်" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">ရက်စွဲ <span class="text-rose-500">*</span></label>
+                        <input type="date" id="task-date" required class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">ဆောင်ရွက်မှု အခြေအနေ <span class="text-rose-500">*</span></label>
+                    <select id="task-status" required class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                        <option value="pending">မစရသေးပါ (Pending)</option>
+                        <option value="progress">ဆောင်ရွက်ဆဲ (In Progress)</option>
+                        <option value="completed">ပြီးစီးပါပြီ (Completed)</option>
+                    </select>
+                </div>
+
+                <!-- Footer Buttons -->
+                <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="closeTaskModal()" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition">
+                        ပယ်ဖျက်ရန်
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition">
+                        သိမ်းဆည်းမည်
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: ပြင်ဆင်ခွင့် တောင်းခံရန် (Request Permission Modal) -->
+    <div id="permission-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden transform transition-all duration-300 p-6 text-center space-y-4">
+            <div class="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto text-3xl">
+                <i class="fa-solid fa-lock text-amber-600"></i>
+            </div>
+            <div>
+                <h3 class="font-bold text-lg text-slate-800">ပြင်ဆင်ခွင့် တောင်းခံရန် လိုအပ်သည်</h3>
+                <p class="text-slate-500 text-sm mt-1">ဤလုပ်ငန်းကို ပြင်ဆင်ရန်အတွက် Admin ၏ ခွင့်ပြုချက်ကို ဦးစွာ တောင်းခံရပါမည်။ (ဆောင်ရွက်ချက်တစ်ခုကို အများဆုံး ၂ ကြိမ်သာ ပြင်ဆင်ခွင့်ပြုပါသည်)</p>
+                <div id="permission-modal-count-info" class="text-xs text-indigo-600 font-bold mt-2 bg-indigo-50 py-1.5 rounded-lg"></div>
+            </div>
+            <input type="hidden" id="permission-task-id">
+            <div class="flex gap-2 pt-2">
+                <button onclick="closePermissionModal()" class="w-1/2 py-2.5 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-bold transition">ပယ်ဖျက်မည်</button>
+                <button onclick="submitEditRequest()" class="w-1/2 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 font-bold transition flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-paper-plane text-xs"></i> တောင်းခံမည်
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: ကိုယ်ပိုင်အချက်အလက် ပြင်ဆင်ရန် (Edit Profile Modal) -->
+    <div id="profile-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden transform transition-all duration-300">
+            <div class="px-6 py-4 bg-indigo-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-user-gear"></i> ကိုယ်ပိုင်အချက်အလက် ပြင်ဆင်ရန်
+                </h3>
+                <button onclick="closeProfileModal()" class="text-indigo-200 hover:text-white transition">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
+            </div>
+            <form onsubmit="handleSaveProfile(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">အမည် (Username) <span class="text-rose-500">*</span></label>
+                    <input type="text" id="profile-username" required class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <div id="profile-dept-container">
+                    <label class="block text-sm font-bold text-slate-700 mb-1">ဌာနခွဲ / ကဏ္ဍ <span class="text-rose-500">*</span></label>
+                    <select id="profile-dept" required class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="ဂြိုဟ်တုစနစ်">ဂြိုဟ်တုစနစ်</option>
+                        <option value="ဂြိုဟ်တုလုပ်ဆောင်ချက်">ဂြိုဟ်တုလုပ်ဆောင်ချက်</option>
+                        <option value="ဂြိုဟ်တုဆက်သွယ်ရေး">ဂြိုဟ်တုဆက်သွယ်ရေး</option>
+                        <option value="ဂြိုဟ်တုအချက်အလက်ခွဲခြမ်းလေ့လာရေး">ဂြိုဟ်တုအချက်အလက်ခွဲခြမ်းလေ့လာရေး</option>
+                        <option value="ဂြိုဟ်တုအသုံးချနယ်ပယ်">ဂြိုဟ်တုအသုံးချနယ်ပယ်</option>
+                        <option value="အခြား">အခြား</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">လျှို့ဝှက်ကုဒ်သစ် (Passcode) <span class="text-rose-500">*</span></label>
+                    <input type="password" id="profile-passcode" required class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="closeProfileModal()" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition">
+                        ပယ်ဖျက်ရန်
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition">
+                        သိမ်းဆည်းမည်
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: ဒေတာ ထိန်းသိမ်းမှု (Backup & Restore Modal) -->
+    <div id="backup-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden transform transition-all duration-300">
+            <div class="px-6 py-4 bg-indigo-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-database"></i> ဒေတာများ ထိန်းသိမ်းခြင်း / ပြန်လည်ရယူခြင်း
+                </h3>
+                <button onclick="closeBackupModal()" class="text-indigo-200 hover:text-white transition">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-6">
+                <!-- Backup Card -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <h4 class="font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-download text-emerald-600"></i> ဒေတာများကို သိမ်းဆည်းရန်
+                    </h4>
+                    <p class="text-slate-500 text-xs mb-3">ဝန်ထမ်းအားလုံး၏ လက်ရှိထည့်သွင်းထားသော မှတ်တမ်းအားလုံးကို JSON file အဖြစ် သင့်စက်ထဲသို့ ဒေါင်းလုဒ်ဆွဲ သိမ်းဆည်းပါမည်။</p>
+                    <button onclick="exportData()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-lg shadow text-sm transition">
+                        ဒေတာ Backup ထုတ်ယူမည်
+                    </button>
+                </div>
+
+                <!-- Restore Card -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <h4 class="font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-upload text-indigo-600"></i> ဒေတာများကို ပြန်လည်ရယူရန်
+                    </h4>
+                    <p class="text-slate-500 text-xs mb-3">ယခင်သိမ်းဆည်းထားသော Backup JSON ဖိုင်ကို ပြန်လည်ရွေးချယ်ပြီး ဤစနစ်အတွင်းသို့ ပြန်လည်သွင်းယူပါမည်။</p>
+                    <label class="block w-full text-center bg-white border border-slate-200 rounded-lg py-2 px-4 text-sm font-bold text-indigo-600 cursor-pointer hover:bg-indigo-50 transition border-dashed">
+                        <span>ဖိုင်ရွေးချယ်ရန်</span>
+                        <input type="file" id="import-file" accept=".json" onchange="importData(event)" class="hidden">
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal (Browser Confirm အစားထိုးလှပသော Modal) -->
+    <div id="confirm-modal" class="hidden fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center space-y-4">
+            <div class="w-16 h-16 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto text-2xl">
+                <i class="fa-solid fa-trash-can"></i>
+            </div>
+            <div>
+                <h4 class="font-bold text-lg text-slate-800">ပယ်ဖျက်ရန် သေချာပါသလား?</h4>
+                <p class="text-slate-500 text-sm mt-1">ဤလုပ်ငန်းမှတ်တမ်းကို ပယ်ဖျက်လိုက်ပါက ပြန်လည်ရယူနိုင်တော့မည် မဟုတ်ပါ။</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="closeConfirmModal(false)" class="w-1/2 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-bold transition">ပယ်ဖျက်ရန်</button>
+                <button onclick="closeConfirmModal(true)" class="w-1/2 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-500 font-bold transition">သေချာပါသည်</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- စိတ်ကြိုက် Notification Banner (Custom Toast Alerts) -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-3 bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-2xl max-w-sm">
+        <span id="toast-icon" class="text-lg"></span>
+        <span id="toast-message" class="text-sm font-medium"></span>
+    </div>
+
+    <!-- Script Logic -->
+    <script>
+        // --- FIREBASE INITIALIZATION & SECURITY RULES ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'office-daily-activity-tracker';
+        let db, auth;
+        let tasks = [];
+        let users = [];
+        let currentUser = JSON.parse(sessionStorage.getItem('current_user')) || null;
+        let confirmAction = null;
+        let unsubscribeTasks, unsubscribeUsers;
+
+        // Try to setup Firebase configurations
+        try {
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+                apiKey: "AIzaSyC1Urd6J79ttP8xj8pPvVRgGeN31alpdlc",
+                authDomain: "dost-activity-system.firebaseapp.com",
+                projectId: "dost-activity-system",
+                storageBucket: "dost-activity-system.firebasestorage.app",
+                messagingSenderId: "84651568177",
+                appId: "1:84651568177:web:d27d8b63d5ff48dd3eb910"
+            };
+            const app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+        } catch (e) {
+            console.error("Firebase Configuration is not correctly defined in sandbox. Using local mock fallbacks:", e);
+        }
+
+        // Setup Firebase Authentication and Listeners
+        async function initFirebaseAuthAndData() {
+            try {
+                // RULE 3: Auth Before Queries - Anonymous or Token login first
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await auth.signInWithCustomToken(__initial_auth_token);
+                } else {
+                    await auth.signInAnonymously();
+                }
+            } catch (err) {
+                console.warn("Auth token failed, retrying anonymous sign-in...", err);
+                try {
+                    await auth.signInAnonymously();
+                } catch (e) {
+                    console.error("Firebase Auth completely failed:", e);
+                }
+            }
+
+            // Once signed in, listen to Auth state
+            auth.onAuthStateChanged(user => {
+                // Close loading screen once initial connection is finalized
+                document.getElementById('loading-screen').classList.add('hidden');
+                
+                if (user) {
+                    listenToFirestoreData();
+                } else {
+                    if (unsubscribeTasks) unsubscribeTasks();
+                    if (unsubscribeUsers) unsubscribeUsers();
+                }
+            });
+        }
+
+        // RULE 2: No Complex Queries. Fetch all data with simple queries, then filter in memory
+        function listenToFirestoreData() {
+            if (!auth.currentUser) return;
+
+            // RULE 1: Strict Paths - /artifacts/{appId}/public/data/{collectionName}
+            const tasksRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks');
+            const usersRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_users');
+
+            // Listening to Real-time Tasks list
+            unsubscribeTasks = tasksRef.onSnapshot(snapshot => {
+                tasks = [];
+                snapshot.forEach(doc => {
+                    tasks.push({ id: doc.id, ...doc.data() });
+                });
+                // Sort tasks in memory by creation ID (newer first)
+                tasks.sort((a, b) => b.id.localeCompare(a.id));
+                renderTasks();
+            }, error => {
+                console.error("Error listening to tasks collection:", error);
+                showToast("ဒေတာအသစ်များကို ဖတ်ယူ၍ မရနိုင်ပါ", "error");
+            });
+
+            // Listening to Real-time Users registry
+            unsubscribeUsers = usersRef.onSnapshot(snapshot => {
+                users = [];
+                snapshot.forEach(doc => {
+                    users.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // If currentUser is logged in, refresh memory to fetch any latest profile modifications from other devices
+                if (currentUser && currentUser.role === 'staff') {
+                    const freshUser = users.find(u => u.id === currentUser.id);
+                    if (freshUser) {
+                        currentUser.username = freshUser.username;
+                        currentUser.dept = freshUser.dept;
+                        sessionStorage.setItem('current_user', JSON.stringify(currentUser));
+                        document.getElementById('nav-user-name').textContent = currentUser.username;
+                        document.getElementById('nav-user-role-text').textContent = currentUser.dept;
+                    }
+                }
+            }, error => {
+                console.error("Error listening to users collection:", error);
+            });
+        }
+
+        // Custom Toast စနစ်
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const msg = document.getElementById('toast-message');
+
+            msg.textContent = message;
+
+            if (type === 'success') {
+                icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+            } else if (type === 'error') {
+                icon.innerHTML = '<i class="fa-solid fa-circle-exclamation text-rose-400"></i>';
+            } else {
+                icon.innerHTML = '<i class="fa-solid fa-info text-blue-400"></i>';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // Auth Tabs အပြောင်းအလဲလုပ်ခြင်း
+        function switchAuthTab(tab) {
+            if (tab === 'login') {
+                document.getElementById('login-tab').classList.remove('hidden');
+                document.getElementById('register-tab').classList.add('hidden');
+            } else {
+                document.getElementById('login-tab').classList.add('hidden');
+                document.getElementById('register-tab').classList.remove('hidden');
+            }
+        }
+
+        // Login options toggle based on role
+        function toggleLoginFields() {
+            const role = document.getElementById('login-role').value;
+            const userField = document.getElementById('login-user-field');
+            const hint = document.getElementById('login-hint');
+            const passcodeLabel = document.getElementById('login-passcode-label');
+
+            if (role === 'admin') {
+                userField.classList.add('hidden');
+                hint.classList.remove('hidden');
+                passcodeLabel.textContent = "ခွင့်ပြုချက်ကုဒ် (Admin Passcode)";
+                document.getElementById('login-passcode').placeholder = "မူရင်း: admin123";
+            } else {
+                userField.classList.remove('hidden');
+                hint.classList.add('hidden');
+                passcodeLabel.textContent = "လျှို့ဝှက်ကုဒ် (Passcode)";
+                document.getElementById('login-passcode').placeholder = "••••••";
+            }
+        }
+
+        // အကောင့်အသစ်မှတ်ပုံတင်ခြင်း (User Registration on Cloud)
+        async function handleRegister(e) {
+            e.preventDefault();
+            const username = document.getElementById('reg-username').value.trim();
+            const dept = document.getElementById('reg-dept').value;
+            const passcode = document.getElementById('reg-passcode').value;
+
+            // နာမည်တူရှိမရှိ စစ်ဆေးခြင်း
+            const userExists = users.some(u => u.username.toLowerCase() === username.toLowerCase());
+            if (userExists) {
+                showToast('ဤအမည်ဖြင့် အကောင့်ဖွင့်ပြီးပါပြီ။ အခြားအမည်သုံးပေးပါ။', 'error');
+                return;
+            }
+
+            const newUser = {
+                id: Date.now().toString(),
+                username,
+                dept,
+                passcode,
+                role: 'staff'
+            };
+
+            try {
+                // Save directly to Firestore collection
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_users').doc(newUser.id).set(newUser);
+                showToast('အကောင့်မှတ်ပုံတင်ခြင်း အောင်မြင်ပါသည်။ ဝင်ရောက်နိုင်ပါပြီ။');
+                
+                // Swap to login flow
+                document.getElementById('login-role').value = 'staff';
+                toggleLoginFields();
+                document.getElementById('login-username').value = username;
+                document.getElementById('login-passcode').value = passcode;
+                switchAuthTab('login');
+            } catch (err) {
+                console.error("Registration error:", err);
+                showToast("မှတ်ပုံတင်ခြင်း မအောင်မြင်ပါ။ အင်တာနက်ချိတ်ဆက်မှု စစ်ဆေးပါ။", "error");
+            }
+        }
+
+        // စနစ်အတွင်း ဝင်ရောက်ခြင်း (Login Processing)
+        function handleLogin(e) {
+            e.preventDefault();
+            const role = document.getElementById('login-role').value;
+            const passcode = document.getElementById('login-passcode').value;
+
+            if (role === 'admin') {
+                // Admin login (Default password is 'admin123')
+                if (passcode === 'admin123') {
+                    currentUser = {
+                        username: 'Authorized Admin',
+                        role: 'admin',
+                        dept: 'စီမံခန့်ခွဲသူ'
+                    };
+                    sessionStorage.setItem('current_user', JSON.stringify(currentUser));
+                    showToast('Admin အဖြစ် စနစ်အတွင်းသို့ ဝင်ရောက်ပြီးပါပြီ။');
+                    initApp();
+                } else {
+                    showToast('Admin Passcode မှားယွင်းနေပါသည်။', 'error');
+                }
+            } else {
+                // Staff login - checks Cloud database in memory
+                const user = users.find(u => u.username.toLowerCase() === usernameValidCheck(document.getElementById('login-username').value) && u.passcode === passcode);
+
+                if (user) {
+                    currentUser = {
+                        id: user.id,
+                        username: user.username,
+                        role: 'staff',
+                        dept: user.dept
+                    };
+                    sessionStorage.setItem('current_user', JSON.stringify(currentUser));
+                    showToast(`${user.username} အဖြစ် စနစ်အတွင်းသို့ ဝင်ရောက်ပြီးပါပြီ။`);
+                    initApp();
+                } else {
+                    showToast('အသုံးပြုသူအမည် သို့မဟုတ် လျှို့ဝှက်ကုဒ် မှားယွင်းနေပါသည်။', 'error');
+                }
+            }
+        }
+
+        function usernameValidCheck(inputVal) {
+            return inputVal ? inputVal.trim().toLowerCase() : '';
+        }
+
+        // စနစ်မှ ထွက်ရန် (Logout)
+        function handleLogout() {
+            sessionStorage.removeItem('current_user');
+            currentUser = null;
+            document.getElementById('app-screen').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('login-passcode').value = '';
+            showToast('စနစ်မှ ထွက်ခွာပြီးပါပြီ။', 'info');
+        }
+
+        // ကိုယ်ပိုင်အချက်အလက် ပြင်ဆင်ရန် Modal ဖွင့်ခြင်း
+        function openProfileModal() {
+            if (!currentUser) return;
+            
+            document.getElementById('profile-username').value = currentUser.username;
+            document.getElementById('profile-dept').value = currentUser.dept;
+            
+            if (currentUser.role === 'staff') {
+                const userObj = users.find(u => u.id === currentUser.id);
+                document.getElementById('profile-passcode').value = userObj ? userObj.passcode : '';
+                document.getElementById('profile-dept-container').classList.remove('hidden');
+            } else {
+                document.getElementById('profile-passcode').value = 'admin123';
+                document.getElementById('profile-dept-container').classList.add('hidden');
+            }
+            
+            document.getElementById('profile-modal').classList.remove('hidden');
+        }
+
+        // ကိုယ်ပိုင်အချက်အလက် ပြင်ဆင်ရန် Modal ပိတ်ခြင်း
+        function closeProfileModal() {
+            document.getElementById('profile-modal').classList.add('hidden');
+        }
+
+        // ပြောင်းလဲမှုများကို ဒေတာဘေ့စ်တွင် သိမ်းဆည်းခြင်း (Save Profile Logic on Cloud)
+        async function handleSaveProfile(e) {
+            e.preventDefault();
+            
+            const newUsername = document.getElementById('profile-username').value.trim();
+            const newDept = document.getElementById('profile-dept').value;
+            const newPasscode = document.getElementById('profile-passcode').value;
+            const oldUsername = currentUser.username;
+
+            if (currentUser.role === 'staff') {
+                const nameConflict = users.some(u => u.id !== currentUser.id && u.username.toLowerCase() === newUsername.toLowerCase());
+                if (nameConflict) {
+                    showToast('ဤအမည်ကို အခြားဝန်ထမ်းတစ်ဦးမှ အသုံးပြုထားပြီး ဖြစ်ပါသည်။', 'error');
+                    return;
+                }
+
+                try {
+                    // Update user doc on Firestore
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_users').doc(currentUser.id).update({
+                        username: newUsername,
+                        dept: newDept,
+                        passcode: newPasscode
+                    });
+
+                    // Migration of old tasks to the new username using transaction batches
+                    if (oldUsername !== newUsername) {
+                        const batch = db.batch();
+                        tasks.forEach(task => {
+                            if (task.userId === oldUsername) {
+                                const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(task.id);
+                                batch.update(docRef, { userId: newUsername, assignee: newUsername });
+                            }
+                        });
+                        await batch.commit();
+                    }
+
+                    currentUser.username = newUsername;
+                    currentUser.dept = newDept;
+                    sessionStorage.setItem('current_user', JSON.stringify(currentUser));
+                    showToast('ကိုယ်ရေးအချက်အလက်များကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ။');
+                    closeProfileModal();
+                    initApp();
+                } catch (err) {
+                    console.error("Profile edit failed on cloud:", err);
+                    showToast("ပြင်ဆင်မှု မအောင်မြင်ပါ၊ အင်တာနက်ချိတ်ဆက်မှု စစ်ဆေးပါ။", "error");
+                }
+            } else {
+                if (newUsername !== 'Authorized Admin') {
+                    showToast('Admin ၏ အမည်ကို ပြောင်းလဲ၍မရပါ။', 'error');
+                    return;
+                }
+                showToast('Admin အချက်အလက်များ ပြင်ဆင်ပြီးပါပြီ။');
+                closeProfileModal();
+            }
+        }
+
+        // ရက်စွဲ စစ်ထုတ်မှုအတွက် Helper Functions
+        function isToday(dateStr) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            return dateStr === todayStr;
+        }
+
+        function isThisCalendarWeek(dateStr) {
+            const taskDate = new Date(dateStr);
+            const today = new Date();
+            
+            const currentDay = today.getDay();
+            const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - distanceToMonday);
+            monday.setHours(0, 0, 0, 0);
+            
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            sunday.setHours(23, 59, 59, 999);
+            
+            return taskDate >= monday && taskDate <= sunday;
+        }
+
+        function isThisCalendarMonth(dateStr) {
+            const taskDate = new Date(dateStr);
+            const today = new Date();
+            return taskDate.getFullYear() === today.getFullYear() && 
+                   taskDate.getMonth() === today.getMonth();
+        }
+
+        // စိတ်ကြိုက်ရက်စွဲရွေးချယ်မှုအတွက် Input ဖွင့်/ပိတ်ခြင်း
+        function toggleCustomDateFields() {
+            const dateRange = document.getElementById('filter-date-range').value;
+            const customInputs = document.getElementById('custom-date-inputs');
+            if (dateRange === 'custom') {
+                customInputs.classList.remove('hidden');
+            } else {
+                customInputs.classList.add('hidden');
+                document.getElementById('filter-start-date').value = '';
+                document.getElementById('filter-end-date').value = '';
+            }
+        }
+
+        // စနစ်စတင်ပွင့်ချိန်တွင် အလုပ်လုပ်မည့် Setup များ
+        function initApp() {
+            if (!currentUser) {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('app-screen').classList.add('hidden');
+                toggleLoginFields();
+                return;
+            }
+
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-screen').classList.remove('hidden');
+
+            document.getElementById('nav-user-name').textContent = currentUser.username;
+            document.getElementById('nav-user-role-text').textContent = currentUser.role === 'admin' ? 'Authorized Person' : currentUser.dept;
+
+            const banner = document.getElementById('access-banner');
+            const backupBtn = document.getElementById('admin-db-btn');
+            const searchInput = document.getElementById('search-input');
+            const deptFilterContainer = document.getElementById('filter-dept-container');
+
+            if (currentUser.role === 'admin') {
+                banner.className = "mb-6 p-4 rounded-xl flex items-center justify-between bg-indigo-50 border border-indigo-100 text-indigo-900";
+                banner.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="bg-indigo-600 text-white p-2.5 rounded-lg text-sm"><i class="fa-solid fa-lock-open"></i></div>
+                        <div>
+                            <span class="font-bold text-sm md:text-base block">ခွင့်ပြုချက်ရရှိသူ (Admin View)</span>
+                            <span class="text-xs text-indigo-600">ရုံးဝန်ထမ်းအားလုံး၏ တစ်နေ့တာ လုပ်ငန်းမှတ်တမ်းအားလုံးကို ကြည့်ရှုစစ်ထုတ်ခွင့်ရှိသည်။ ဝန်ထမ်းများ၏ ပြင်ဆင်ခွင့်တောင်းဆိုချက်များကို ခွင့်ပြုပေးနိုင်သည်။</span>
+                        </div>
+                    </div>
+                `;
+                backupBtn.classList.remove('hidden');
+                document.getElementById('dash-total-label').textContent = "စုစုပေါင်းလုပ်ငန်း (အားလုံး)";
+                searchInput.placeholder = "လုပ်ငန်း သို့မဟုတ် ဝန်ထမ်းအမည်ဖြင့် ရှာရန်...";
+                deptFilterContainer.classList.remove('hidden');
+            } else {
+                banner.className = "mb-6 p-4 rounded-xl flex items-center justify-between bg-emerald-50 border border-emerald-100 text-emerald-950";
+                banner.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="bg-emerald-600 text-white p-2.5 rounded-lg text-sm"><i class="fa-solid fa-user-shield"></i></div>
+                        <div>
+                            <span class="font-bold text-sm md:text-base block">ကိုယ်ပိုင်မှတ်တမ်းကဏ္ဍ (Personal Workspace)</span>
+                            <span class="text-xs text-emerald-600">မိမိကိုယ်တိုင်ထည့်သွင်းထားသော မှတ်တမ်းများကိုသာ မြင်တွေ့နိုင်သည်။ လုပ်ငန်းပြင်ဆင်ရန် Admin ခွင့်ပြုချက် လိုအပ်ပြီး အများဆုံး ၂ ကြိမ်သာ ပြင်ခွင့်ရှိသည်။</span>
+                        </div>
+                    </div>
+                `;
+                backupBtn.classList.add('hidden');
+                document.getElementById('dash-total-label').textContent = "ကျွန်ုပ်၏ လုပ်ငန်းအားလုံး";
+                searchInput.placeholder = "လုပ်ငန်းခေါင်းစဉ်ဖြင့် ရှာရန်...";
+                deptFilterContainer.classList.add('hidden');
+            }
+
+            renderTasks();
+        }
+
+        // Dashboard အရေအတွက်များကို တွက်ချက်ခြင်း
+        function updateDashboard() {
+            const dateRange = document.getElementById('filter-date-range').value;
+            const startDateStr = document.getElementById('filter-start-date').value;
+            const endDateStr = document.getElementById('filter-end-date').value;
+            
+            const visibleTasks = tasks.filter(t => {
+                const matchesUser = currentUser.role === 'admin' || t.userId === currentUser.username;
+                let matchesDate = true;
+                
+                if (dateRange === 'today') {
+                    matchesDate = isToday(t.date);
+                } else if (dateRange === 'week') {
+                    matchesDate = isThisCalendarWeek(t.date);
+                } else if (dateRange === 'month') {
+                    matchesDate = isThisCalendarMonth(t.date);
+                } else if (dateRange === 'custom') {
+                    if (startDateStr && endDateStr) {
+                        matchesDate = t.date >= startDateStr && t.date <= endDateStr;
+                    } else if (startDateStr) {
+                        matchesDate = t.date >= startDateStr;
+                    } else if (endDateStr) {
+                        matchesDate = t.date <= endDateStr;
+                    }
+                }
+                
+                return matchesUser && matchesDate;
+            });
+            
+            document.getElementById('total-count').textContent = visibleTasks.length;
+            document.getElementById('pending-count').textContent = visibleTasks.filter(t => t.status === 'pending').length;
+            document.getElementById('progress-count').textContent = visibleTasks.filter(t => t.status === 'progress').length;
+            document.getElementById('completed-count').textContent = visibleTasks.filter(t => t.status === 'completed').length;
+
+            // Admin အတွက် ပြင်ဆင်ခွင့် တောင်းခံမှု သတိပေးချက်စာတန်း ထုတ်ရန်
+            const pendingRequests = tasks.filter(t => t.editRequestStatus === 'pending');
+            const alertBanner = document.getElementById('pending-requests-banner');
+            if (currentUser && currentUser.role === 'admin' && pendingRequests.length > 0) {
+                alertBanner.innerHTML = `
+                    <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 animate-pulse shadow-sm">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-amber-500 text-white p-2 rounded-xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            <div>
+                                <span class="font-bold text-sm md:text-base block">ပြင်ဆင်ခွင့်တောင်းဆိုမှုများ ရှိနေပါသည်</span>
+                                <span class="text-xs text-amber-700">ဝန်ထမ်းများ၏ လုပ်ငန်းပြင်ဆင်ခွင့်တောင်းခံလွှာ <strong>${pendingRequests.length}</strong> ခုအား စာရင်းဇယားတွင် ခွင့်ပြု/ငြင်းပယ် ပေးနိုင်ပါသည်။</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                alertBanner.classList.remove('hidden');
+            } else {
+                alertBanner.classList.add('hidden');
+            }
+        }
+
+        // လုပ်ငန်းဆောင်ရွက်ချက်များ စာရင်းအား ဇယားတွင် ဖော်ပြခြင်း
+        function renderTasks() {
+            const listContainer = document.getElementById('task-list');
+            const emptyState = document.getElementById('empty-state');
+            listContainer.innerHTML = '';
+
+            const searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+            const dateRange = document.getElementById('filter-date-range').value;
+            const startDateStr = document.getElementById('filter-start-date').value;
+            const endDateStr = document.getElementById('filter-end-date').value;
+            
+            const deptFilter = currentUser.role === 'admin' ? document.getElementById('filter-dept').value : '';
+            const statusFilter = document.getElementById('filter-status').value;
+            const priorityFilter = document.getElementById('filter-priority').value;
+
+            const accessibleTasks = tasks.filter(task => {
+                if (currentUser.role === 'admin') return true;
+                return task.userId === currentUser.username;
+            });
+
+            const filteredTasks = accessibleTasks.filter(task => {
+                const matchesSearch = task.title.toLowerCase().includes(searchQuery) || 
+                                      task.assignee.toLowerCase().includes(searchQuery) ||
+                                      (task.desc && task.desc.toLowerCase().includes(searchQuery));
+                
+                const matchesDept = deptFilter ? task.dept === deptFilter : true;
+                const matchesStatus = statusFilter ? task.status === statusFilter : true;
+                const matchesPriority = priorityFilter ? task.priority === priorityFilter : true;
+
+                let matchesDate = true;
+                if (dateRange === 'today') {
+                    matchesDate = isToday(task.date);
+                } else if (dateRange === 'week') {
+                    matchesDate = isThisCalendarWeek(task.date);
+                } else if (dateRange === 'month') {
+                    matchesDate = isThisCalendarMonth(task.date);
+                } else if (dateRange === 'custom') {
+                    if (startDateStr && endDateStr) {
+                        matchesDate = task.date >= startDateStr && task.date <= endDateStr;
+                    } else if (startDateStr) {
+                        matchesDate = task.date >= startDateStr;
+                    } else if (endDateStr) {
+                        matchesDate = task.date <= endDateStr;
+                    }
+                }
+
+                return matchesSearch && matchesDept && matchesStatus && matchesPriority && matchesDate;
+            });
+
+            document.getElementById('showing-count').textContent = `ဆောင်ရွက်ချက် ${filteredTasks.length} ခု ပြသနေသည်`;
+
+            if (filteredTasks.length === 0) {
+                emptyState.classList.remove('hidden');
+                updateDashboard();
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            filteredTasks.forEach((task, index) => {
+                if (task.editCount === undefined) task.editCount = 0;
+                if (task.editRequestStatus === undefined) task.editRequestStatus = 'none';
+
+                let priorityClass = '';
+                let priorityLabel = '';
+                if (task.priority === 'high') {
+                    priorityClass = 'bg-rose-50 text-rose-700 border-rose-100';
+                    priorityLabel = 'မြင့်';
+                } else if (task.priority === 'medium') {
+                    priorityClass = 'bg-amber-50 text-amber-700 border-amber-100';
+                    priorityLabel = 'လတ်';
+                } else {
+                    priorityClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                    priorityLabel = 'နိမ့်';
+                }
+
+                let statusClass = '';
+                let statusLabel = '';
+                if (task.status === 'completed') {
+                    statusClass = 'bg-emerald-100 text-emerald-800';
+                    statusLabel = '<i class="fa-solid fa-circle-check mr-1 text-emerald-600"></i> ပြီးစီး';
+                } else if (task.status === 'progress') {
+                    statusClass = 'bg-blue-100 text-blue-800';
+                    statusLabel = '<i class="fa-solid fa-spinner animate-spin mr-1 text-blue-600"></i> လုပ်ဆောင်ဆဲ';
+                } else {
+                    statusClass = 'bg-amber-100 text-amber-800';
+                    statusLabel = '<i class="fa-regular fa-clock mr-1 text-amber-600"></i> မစရသေး';
+                }
+
+                let actionButtonsHTML = '';
+                
+                if (currentUser.role === 'admin') {
+                    if (task.editRequestStatus === 'pending') {
+                        actionButtonsHTML += `
+                            <button onclick="approveEditRequest('${task.id}')" title="ပြင်ဆင်ခွင့်ပြုမည်" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+                                <i class="fa-solid fa-check"></i> ခွင့်ပြု
+                            </button>
+                            <button onclick="rejectEditRequest('${task.id}')" title="ငြင်းပယ်မည်" class="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+                                <i class="fa-solid fa-times"></i> ငြင်းပယ်
+                            </button>
+                        `;
+                    }
+                    
+                    actionButtonsHTML += `
+                        <button onclick="editTask('${task.id}')" title="ပြင်ဆင်ရန်" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button onclick="deleteTask('${task.id}')" title="ဖျက်ရန်" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    `;
+                } else {
+                    actionButtonsHTML += `
+                        <button onclick="editTask('${task.id}')" title="ပြင်ဆင်ရန်" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition flex items-center gap-1 text-sm font-semibold">
+                            <i class="fa-solid fa-pen-to-square"></i> ပြင်ရန်
+                        </button>
+                        <button onclick="deleteTask('${task.id}')" title="ဖျက်ရန်" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    `;
+                }
+
+                let editCountBadge = `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-medium text-[10px]">ပြင်ဆင်ပြီး: ${task.editCount || 0}/၂ ကြိမ်</span>`;
+                if (task.editCount >= 2) {
+                    editCountBadge = `<span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border-rose-100 font-medium text-[10px]"><i class="fa-solid fa-lock"></i> ၂ ကြိမ်ပြည့် (သော့ပိတ်ထားသည်)</span>`;
+                }
+
+                let requestBadge = '';
+                if (task.editRequestStatus === 'pending') {
+                    requestBadge = `<span class="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100 font-medium text-[10px] animate-pulse">⏳ Admin ခွင့်ပြုချက် စောင့်ဆိုင်းဆဲ</span>`;
+                } else if (task.editRequestStatus === 'approved') {
+                    requestBadge = `<span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium text-[10px]">✅ ပြင်ဆင်ခွင့် ရရှိထားသည်</span>`;
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50/80 transition-colors duration-150';
+                tr.innerHTML = `
+                    <td class="py-4 px-6 text-center text-sm font-semibold text-slate-400">${index + 1}</td>
+                    <td class="py-4 px-6">
+                        <div class="font-bold text-slate-800 text-sm md:text-base">${task.title}</div>
+                        <div class="text-xs text-slate-400 mt-0.5">${task.desc || 'အသေးစိတ်အချက်အလက် မရှိပါ'}</div>
+                        <div class="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-2">
+                            <span><i class="fa-regular fa-calendar"></i> ရက်စွဲ - ${task.date}</span>
+                            ${editCountBadge}
+                            ${requestBadge}
+                        </div>
+                    </td>
+                    <td class="py-4 px-6">
+                        <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            ${task.dept}
+                        </span>
+                    </td>
+                    <td class="py-4 px-6">
+                        <span class="px-2 py-0.5 text-xs font-semibold rounded border ${priorityClass}">
+                            ${priorityLabel}
+                        </span>
+                    </td>
+                    <td class="py-4 px-6">
+                        <div class="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                            <div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700 uppercase">
+                                ${task.assignee.charAt(0)}
+                            </div>
+                            <span>${task.assignee}</span>
+                        </div>
+                    </td>
+                    <td class="py-4 px-6">
+                        <span class="px-2.5 py-1 text-xs font-bold rounded-full inline-flex items-center ${statusClass}">
+                            ${statusLabel}
+                        </span>
+                    </td>
+                    <td class="py-4 px-6 text-right no-print">
+                        <div class="flex justify-end items-center gap-1.5">
+                            ${actionButtonsHTML}
+                        </div>
+                    </td>
+                `;
+                listContainer.appendChild(tr);
+            });
+
+            updateDashboard();
+        }
+
+        // လုပ်ငန်းအသစ်ထည့်ရန် Modal ဖွင့်ခြင်း
+        function openAddModal() {
+            document.getElementById('task-form').reset();
+            document.getElementById('task-id').value = '';
+            document.getElementById('task-date').value = new Date().toISOString().split('T')[0];
+            
+            if (currentUser && currentUser.role === 'staff') {
+                const assigneeInput = document.getElementById('task-assignee');
+                assigneeInput.value = currentUser.username;
+                assigneeInput.readOnly = true;
+                assigneeInput.className = "w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-500 rounded-xl focus:outline-none cursor-not-allowed";
+
+                const deptSelect = document.getElementById('task-dept');
+                deptSelect.value = currentUser.dept;
+                deptSelect.disabled = true;
+                deptSelect.className = "w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-500 rounded-xl focus:outline-none cursor-not-allowed";
+            } else {
+                const assigneeInput = document.getElementById('task-assignee');
+                assigneeInput.readOnly = false;
+                assigneeInput.className = "w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition";
+
+                const deptSelect = document.getElementById('task-dept');
+                deptSelect.disabled = false;
+                deptSelect.className = "w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition";
+            }
+
+            document.getElementById('modal-title').innerHTML = '<i class="fa-solid fa-plus-circle"></i> လုပ်ငန်းဆောင်ရွက်ချက်အသစ် ထည့်သွင်းရန်';
+            document.getElementById('task-modal').classList.remove('hidden');
+        }
+
+        // Modal ပိတ်ခြင်း
+        function closeTaskModal() {
+            document.getElementById('task-modal').classList.add('hidden');
+        }
+
+        // ပြင်ဆင်ခွင့်တောင်းဆိုရန် Modal ဖွင့်ခြင်း
+        function openRequestPermissionModal(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            const currentCount = task.editCount || 0;
+            document.getElementById('permission-task-id').value = taskId;
+            document.getElementById('permission-modal-count-info').textContent = `လက်ရှိတွင် ${currentCount}/၂ ကြိမ် ပြင်ဆင်ပြီးဖြစ်ပါသည်`;
+            document.getElementById('permission-modal').classList.remove('hidden');
+        }
+
+        // ပြင်ဆင်ခွင့်တောင်းဆိုရန် Modal ပိတ်ခြင်း
+        function closePermissionModal() {
+            document.getElementById('permission-modal').classList.add('hidden');
+        }
+
+        // ဝန်ထမ်းမှ Admin ထံ ပြင်ဆင်ခွင့် တောင်းဆိုခြင်း (Updates doc on cloud)
+        async function submitEditRequest() {
+            const taskId = document.getElementById('permission-task-id').value;
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(task.id).update({
+                        editRequestStatus: 'pending'
+                    });
+                    showToast('Admin ထံ ပြင်ဆင်ခွင့် တောင်းခံလွှာ ပေးပို့ပြီးပါပြီ။', 'success');
+                } catch (err) {
+                    console.error("Edit request update failed:", err);
+                    showToast("ချိတ်ဆက်မှု မအောင်မြင်ပါ", "error");
+                }
+            }
+            closePermissionModal();
+        }
+
+        // Admin မှ ပြင်ဆင်ခွင့်ပြုခြင်း (Approve on cloud)
+        async function approveEditRequest(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(task.id).update({
+                        editRequestStatus: 'approved'
+                    });
+                    showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ခွင့်ပြုလိုက်ပါပြီ။`, 'success');
+                } catch (err) {
+                    console.error("Approve request failed on cloud:", err);
+                }
+            }
+        }
+
+        // Admin မှ ပြင်ဆင်ခွင့်ငြင်းပယ်ခြင်း (Reject on cloud)
+        async function rejectEditRequest(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(task.id).update({
+                        editRequestStatus: 'none'
+                    });
+                    showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ငြင်းပယ်လိုက်ပါပြီ။`, 'error');
+                } catch (err) {
+                    console.error("Reject request failed on cloud:", err);
+                }
+            }
+        }
+
+        // ဒေတာ backup modal ဖွင့်ရန်
+        function openBackupModal() {
+            document.getElementById('backup-modal').classList.remove('hidden');
+        }
+
+        // ဒေတာ backup modal ပိတ်ရန်
+        function closeBackupModal() {
+            document.getElementById('backup-modal').classList.add('hidden');
+        }
+
+        // Task သိမ်းဆည်းခြင်း (Create သို့မဟုတ် Update - Saved to Firestore)
+        async function saveTask(e) {
+            e.preventDefault();
+
+            const id = document.getElementById('task-id').value;
+            const title = document.getElementById('task-title').value.trim();
+            const desc = document.getElementById('task-desc').value.trim();
+            
+            const dept = currentUser.role === 'staff' ? currentUser.dept : document.getElementById('task-dept').value;
+            const priority = document.getElementById('task-priority').value;
+            const assignee = currentUser.role === 'staff' ? currentUser.username : document.getElementById('task-assignee').value.trim();
+            
+            const date = document.getElementById('task-date').value;
+            const status = document.getElementById('task-status').value;
+
+            try {
+                if (id) {
+                    const taskToUpdate = tasks.find(t => t.id === id);
+                    if (taskToUpdate) {
+                        if (currentUser.role === 'staff' && taskToUpdate.userId !== currentUser.username) {
+                            showToast('ဤလုပ်ငန်းကို ပြင်ဆင်ရန် သင့်တွင် ခွင့်ပြုချက်မရှိပါ။', 'error');
+                            return;
+                        }
+
+                        let updatedEditCount = taskToUpdate.editCount || 0;
+                        if (currentUser.role === 'staff') {
+                            updatedEditCount += 1;
+                        }
+
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(id).update({
+                            title,
+                            desc,
+                            dept,
+                            priority,
+                            assignee,
+                            date,
+                            status,
+                            editCount: updatedEditCount,
+                            editRequestStatus: 'none' // Reset permission state once used
+                        });
+                        showToast('လုပ်ငန်းမှတ်တမ်း ပြင်ဆင်ပြီးပါပြီ။');
+                    }
+                } else {
+                    const newTaskId = Date.now().toString();
+                    const newTask = {
+                        title,
+                        desc,
+                        dept,
+                        priority,
+                        assignee,
+                        date,
+                        status,
+                        userId: currentUser.role === 'staff' ? currentUser.username : 'admin_added',
+                        editCount: 0,
+                        editRequestStatus: 'none'
+                    };
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(newTaskId).set(newTask);
+                    showToast('လုပ်ငန်းမှတ်တမ်းအသစ် ထည့်သွင်းပြီးပါပြီ။');
+                }
+                closeTaskModal();
+            } catch (err) {
+                console.error("Error writing task to Firestore:", err);
+                showToast("မှတ်တမ်းထိန်းသိမ်းမှု မအောင်မြင်ပါ၊ ချိတ်ဆက်မှု စစ်ဆေးပါ။", "error");
+            }
+        }
+
+        // ပြင်ဆင်ရန် လုပ်ဆောင်ချက်
+        function editTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            if (currentUser.role === 'staff') {
+                if (task.userId !== currentUser.username) {
+                    showToast('ဤလုပ်ငန်းကို ပြင်ဆင်ခွင့်မရှိပါ။ ကိုယ်ပိုင်လုပ်ငန်းများသာ ပြင်ဆင်နိုင်သည်။', 'error');
+                    return;
+                }
+
+                if ((task.editCount || 0) >= 2) {
+                    showToast('ဤလုပ်ငန်းကို ၂ ကြိမ် ပြင်ဆင်ပြီးဖြစ်၍ ထပ်မံပြင်ဆင်ခွင့် မရှိတော့ပါ။', 'error');
+                    return;
+                }
+
+                if (task.editRequestStatus === 'none') {
+                    openRequestPermissionModal(id);
+                    return;
+                } else if (task.editRequestStatus === 'pending') {
+                    showToast('Admin ခွင့်ပြုချက်ပေးရန် စောင့်ဆိုင်းနေဆဲ ဖြစ်ပါသည်။', 'info');
+                    return;
+                }
+            }
+
+            document.getElementById('task-id').value = task.id;
+            document.getElementById('task-title').value = task.title;
+            document.getElementById('task-desc').value = task.desc;
+            
+            const deptSelect = document.getElementById('task-dept');
+            deptSelect.value = task.dept;
+            const assigneeInput = document.getElementById('task-assignee');
+            assigneeInput.value = task.assignee;
+
+            if (currentUser.role === 'staff') {
+                deptSelect.disabled = true;
+                deptSelect.className = "w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-500 rounded-xl cursor-not-allowed";
+                assigneeInput.readOnly = true;
+                assigneeInput.className = "w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-500 rounded-xl cursor-not-allowed";
+            } else {
+                deptSelect.disabled = false;
+                deptSelect.className = "w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition";
+                assigneeInput.readOnly = false;
+                assigneeInput.className = "w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition";
+            }
+
+            document.getElementById('task-priority').value = task.priority;
+            document.getElementById('task-date').value = task.date;
+            document.getElementById('task-status').value = task.status;
+
+            document.getElementById('modal-title').innerHTML = '<i class="fa-solid fa-edit"></i> လုပ်ငန်းမှတ်တမ်း ပြင်ဆင်ရန်';
+            document.getElementById('task-modal').classList.remove('hidden');
+        }
+
+        // ဖျက်ရန် လုပ်ဆောင်ချက် (Deletes from Firestore)
+        function deleteTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            if (currentUser.role === 'staff' && task.userId !== currentUser.username) {
+                showToast('ဤလုပ်ငန်းကို ဖျက်ပိုင်ခွင့်မရှိပါ။', 'error');
+                return;
+            }
+
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            
+            confirmAction = async function() {
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(id).delete();
+                    showToast('မှတ်တမ်းကို ပယ်ဖျက်ပြီးပါပြီ။', 'error');
+                } catch (err) {
+                    console.error("Error deleting from firestore:", err);
+                    showToast("ဒေတာဖျက်သိမ်းမှု မအောင်မြင်ပါ", "error");
+                }
+            };
+        }
+
+        // Close Confirm Modal
+        function closeConfirmModal(isConfirmed) {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            if (isConfirmed && confirmAction) {
+                confirmAction();
+            }
+            confirmAction = null;
+        }
+
+        // PDF ထုတ်ယူရန် / ရိုက်နှိပ်ရန် (Print/PDF Report Function)
+        function printReport() {
+            if (!currentUser) return;
+            
+            const dateRange = document.getElementById('filter-date-range').value;
+            let rangeLabel = "မှတ်တမ်းအားလုံး";
+            if (dateRange === 'today') rangeLabel = "ယနေ့ဆောင်ရွက်ချက်များ";
+            if (dateRange === 'week') rangeLabel = "ယခုအပတ် ဆောင်ရွက်ချက်များ (Weekly Report)";
+            if (dateRange === 'month') rangeLabel = "ယခုလ ဆောင်ရွက်ချက်များ (Monthly Report)";
+            if (dateRange === 'custom') {
+                const start = document.getElementById('filter-start-date').value;
+                const end = document.getElementById('filter-end-date').value;
+                rangeLabel = `စိတ်ကြိုက်ရက်စွဲ ဆောင်ရွက်ချက်များ (${start || '...'} မှ ${end || '...'} အထိ)`;
+            }
+
+            const todayStr = new Date().toLocaleDateString('my-MM', { year: 'numeric', month: 'long', day: 'numeric' });
+            
+            document.getElementById('print-report-meta').innerHTML = `<strong>အမျိုးအစား:</strong> ${rangeLabel} <span class="mx-4">|</span> <strong>ထုတ်ယူသည့်ရက်စွဲ:</strong> ${todayStr}`;
+            document.getElementById('print-report-user').innerHTML = `<strong>တင်ပြသူ:</strong> ${currentUser.username} (${currentUser.role === 'admin' ? 'စီမံခန့်ခွဲသူ' : currentUser.dept})`;
+            
+            window.print();
+        }
+
+        // Backup ဒေတာများအား JSON ဖိုင်အဖြစ် ထုတ်ယူခြင်း (Export Data - Admin Only)
+        function exportData() {
+            if (currentUser.role !== 'admin') {
+                showToast('ဤလုပ်ဆောင်ချက်ကို လုပ်ဆောင်ရန် သင့်တွင် ခွင့်ပြုချက်မရှိပါ။', 'error');
+                return;
+            }
+            if (tasks.length === 0) {
+                showToast('ဒေါင်းလုဒ်ဆွဲရန် မည်သည့်အချက်အလက်မှ မရှိသေးပါ။', 'error');
+                return;
+            }
+            const backupData = {
+                tasks: tasks,
+                users: users
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            
+            const today = new Date().toISOString().split('T')[0];
+            downloadAnchor.setAttribute("href",     dataStr);
+            downloadAnchor.setAttribute("download", `office_tracker_master_backup_${today}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('ဒေတာ Master Backup ဖိုင်ကို အောင်မြင်စွာ ထုတ်ယူပြီးပါပြီ။');
+            closeBackupModal();
+        }
+
+        // JSON ဖိုင်မှ ဒေတာများ ပြန်လည်သွင်းယူခြင်း (Import Data - Admin Only)
+        async function importData(event) {
+            if (currentUser.role !== 'admin') {
+                showToast('ဒေတာ သွင်းယူခွင့် မရှိပါ။', 'error');
+                return;
+            }
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    if (importedData && Array.isArray(importedData.tasks)) {
+                        const batch = db.batch();
+                        
+                        // Upload tasks to firestore
+                        importedData.tasks.forEach(t => {
+                            const taskDoc = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(t.id || Date.now().toString());
+                            batch.set(taskDoc, t);
+                        });
+
+                        // Upload users to firestore
+                        if (Array.isArray(importedData.users)) {
+                            importedData.users.forEach(u => {
+                                const userDoc = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_users').doc(u.id);
+                                batch.set(userDoc, u);
+                            });
+                        }
+
+                        await batch.commit();
+                        showToast('ဒေတာဘေ့စ်တစ်ခုလုံးအား အောင်မြင်စွာ ရယူထည့်သွင်းပြီးပါပြီ။');
+                        closeBackupModal();
+                    } else {
+                        showToast('မှားယွင်းသော ဒေတာဖိုင်အမျိုးအစား ဖြစ်နေပါသည်။', 'error');
+                    }
+                } catch (error) {
+                    console.error("Import error:", error);
+                    showToast("ဖိုင်ဖတ်ရှုရာတွင် ချို့ယွင်းချက် ရှိနေပါသည်", "error");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // စတင်ပွင့်လှစ်ချိန်တွင် Firebase Authentication ကိုစတင်လုပ်ဆောင်သည်
+        window.onload = function() {
+            initFirebaseAuthAndData();
+            initApp();
+        };
+    </script>
+</body>
+</html>
