@@ -601,14 +601,14 @@
             try {
                 // RULE 3: Auth Before Queries - Anonymous or Token login first
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await auth.signInWithCustomToken(__initial_auth_token);
+                    await auth.signInWithCustomToken(auth, __initial_auth_token);
                 } else {
-                    await auth.signInAnonymously();
+                    await auth.signInAnonymously(auth);
                 }
             } catch (err) {
                 console.warn("Auth token failed, retrying anonymous sign-in...", err);
                 try {
-                    await auth.signInAnonymously();
+                    await auth.signInAnonymously(auth);
                 } catch (e) {
                     console.error("Firebase Auth completely failed:", e);
                 }
@@ -847,6 +847,7 @@
         // ပြောင်းလဲမှုများကို ဒေတာဘေ့စ်တွင် သိမ်းဆည်းခြင်း (Save Profile Logic on Cloud)
         async function handleSaveProfile(e) {
             e.preventDefault();
+            if (!currentUser) return;
             
             const newUsername = document.getElementById('profile-username').value.trim();
             const newDept = document.getElementById('profile-dept').value;
@@ -923,6 +924,13 @@
             return taskDate >= monday && taskDate <= sunday;
         }
 
+        function isThisCalendarMonth(dateStr) {
+            const taskDate = new Date(dateStr);
+            const today = new Date();
+            return taskDate.getFullYear() === today.getFullYear() && 
+                   taskDate.getMonth() === today.getMonth();
+        }
+
         // စိတ်ကြိုက်ရက်စွဲရွေးချယ်မှုအတွက် Input ဖွင့်/ပိတ်ခြင်း
         function toggleCustomDateFields() {
             const dateRange = document.getElementById('filter-date-range').value;
@@ -993,6 +1001,8 @@
 
         // Dashboard အရေအတွက်များကို တွက်ချက်ခြင်း
         function updateDashboard() {
+            if (!currentUser) return; // Guard against null currentUser on initial load
+            
             const dateRange = document.getElementById('filter-date-range').value;
             const startDateStr = document.getElementById('filter-start-date').value;
             const endDateStr = document.getElementById('filter-end-date').value;
@@ -1048,6 +1058,8 @@
 
         // လုပ်ငန်းဆောင်ရွက်ချက်များ စာရင်းအား ဇယားတွင် ဖော်ပြခြင်း
         function renderTasks() {
+            if (!currentUser) return; // Guard against null currentUser on initial load
+            
             const listContainer = document.getElementById('task-list');
             const emptyState = document.getElementById('empty-state');
             listContainer.innerHTML = '';
@@ -1144,7 +1156,7 @@
                                 <i class="fa-solid fa-check"></i> ခွင့်ပြု
                             </button>
                             <button onclick="rejectEditRequest('${task.id}')" title="ငြင်းပယ်မည်" class="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
-                                <i class="fa-solid fa-times"></i> ငြင်းပယ်
+                                <i class="fa-solid fa-times"></i> Ngြင်းပယ်
                             </button>
                         `;
                     }
@@ -1267,6 +1279,8 @@
         function openRequestPermissionModal(taskId) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
+            if (!currentUser) return;
+            
             const currentCount = task.editCount || 0;
             document.getElementById('permission-task-id').value = taskId;
             document.getElementById('permission-modal-count-info').textContent = `လက်ရှိတွင် ${currentCount}/၂ ကြိမ် ပြင်ဆင်ပြီးဖြစ်ပါသည်`;
@@ -1278,51 +1292,38 @@
             document.getElementById('permission-modal').classList.add('hidden');
         }
 
-        // ဝန်ထမ်းမှ Admin ထံ ပြင်ဆင်ခွင့် တောင်းဆိုခြင်း (Updates doc on cloud)
-        async function submitEditRequest() {
+        // ဝန်ထမ်းမှ Admin ထံ ပြင်ဆင်ခွင့် တောင်းဆိုခြင်း
+        function submitEditRequest() {
             const taskId = document.getElementById('permission-task-id').value;
             const task = tasks.find(t => t.id === taskId);
             if (task) {
-                try {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(task.id).update({
-                        editRequestStatus: 'pending'
-                    });
-                    showToast('Admin ထံ ပြင်ဆင်ခွင့် တောင်းခံလွှာ ပေးပို့ပြီးပါပြီ။', 'success');
-                } catch (err) {
-                    console.error("Edit request update failed:", err);
-                    showToast("ချိတ်ဆက်မှု မအောင်မြင်ပါ", "error");
-                }
+                task.editRequestStatus = 'pending';
+                localStorage.setItem('office_tasks', JSON.stringify(tasks));
+                renderTasks();
+                showToast('Admin ထံ ပြင်ဆင်ခွင့် တောင်းခံလွှာ ပေးပို့ပြီးပါပြီ။', 'success');
             }
             closePermissionModal();
         }
 
-        // Admin မှ ပြင်ဆင်ခွင့်ပြုခြင်း (Approve on cloud)
-        async function approveEditRequest(id) {
+        // Admin မှ ပြင်ဆင်ခွင့်ပြုခြင်း (Approve)
+        function approveEditRequest(id) {
             const task = tasks.find(t => t.id === id);
             if (task) {
-                try {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(task.id).update({
-                        editRequestStatus: 'approved'
-                    });
-                    showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ခွင့်ပြုလိုက်ပါပြီ။`, 'success');
-                } catch (err) {
-                    console.error("Approve request failed on cloud:", err);
-                }
+                task.editRequestStatus = 'approved';
+                localStorage.setItem('office_tasks', JSON.stringify(tasks));
+                renderTasks();
+                showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ခွင့်ပြုလိုက်ပါပြီ။`, 'success');
             }
         }
 
-        // Admin မှ ပြင်ဆင်ခွင့်ငြင်းပယ်ခြင်း (Reject on cloud)
-        async function rejectEditRequest(id) {
+        // Admin မှ ပြင်ဆင်ခွင့်ငြင်းပယ်ခြင်း (Reject)
+        function rejectEditRequest(id) {
             const task = tasks.find(t => t.id === id);
             if (task) {
-                try {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(task.id).update({
-                        editRequestStatus: 'none'
-                    });
-                    showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ငြင်းပယ်လိုက်ပါပြီ။`, 'error');
-                } catch (err) {
-                    console.error("Reject request failed on cloud:", err);
-                }
+                task.editRequestStatus = 'none';
+                localStorage.setItem('office_tasks', JSON.stringify(tasks));
+                renderTasks();
+                showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ငြင်းပယ်လိုက်ပါပြီ။`, 'error');
             }
         }
 
@@ -1339,6 +1340,7 @@
         // Task သိမ်းဆည်းခြင်း (Create သို့မဟုတ် Update - Saved to Firestore)
         async function saveTask(e) {
             e.preventDefault();
+            if (!currentUser) return;
 
             const id = document.getElementById('task-id').value;
             const title = document.getElementById('task-title').value.trim();
@@ -1353,32 +1355,26 @@
 
             try {
                 if (id) {
-                    const taskToUpdate = tasks.find(t => t.id === id);
-                    if (taskToUpdate) {
-                        if (currentUser.role === 'staff' && taskToUpdate.userId !== currentUser.username) {
+                    // ပြင်ဆင်ခြင်းလုပ်ငန်းစဉ် (Edit Existing Task)
+                    const index = tasks.findIndex(t => t.id === id);
+                    if (index !== -1) {
+                        // Check ownership before editing
+                        if (currentUser.role === 'staff' && tasks[index].userId !== currentUser.username) {
                             showToast('ဤလုပ်ငန်းကို ပြင်ဆင်ရန် သင့်တွင် ခွင့်ပြုချက်မရှိပါ။', 'error');
                             return;
                         }
 
-                        let updatedEditCount = taskToUpdate.editCount || 0;
+                        // ဝန်ထမ်းပြင်ဆင်ခြင်းဖြစ်ပါက editCount တိုးရန်နှင့် request ပိတ်ရန်
                         if (currentUser.role === 'staff') {
-                            updatedEditCount += 1;
+                            tasks[index].editCount = (tasks[index].editCount || 0) + 1;
+                            tasks[index].editRequestStatus = 'none'; // ခွင့်ပြုချက်ကို သုံးစွဲပြီးသွားပြီဖြစ်၍ ပြန်ပိတ်သည်
                         }
 
-                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(id).update({
-                            title,
-                            desc,
-                            dept,
-                            priority,
-                            assignee,
-                            date,
-                            status,
-                            editCount: updatedEditCount,
-                            editRequestStatus: 'none' // Reset permission state once used
-                        });
+                        tasks[index] = { ...tasks[index], title, desc, dept, priority, assignee, date, status };
                         showToast('လုပ်ငန်းမှတ်တမ်း ပြင်ဆင်ပြီးပါပြီ။');
                     }
                 } else {
+                    // အသစ်ထည့်သွင်းခြင်းလုပ်ငန်းစဉ် (Add New Task)
                     const newTaskId = Date.now().toString();
                     const newTask = {
                         title,
@@ -1406,6 +1402,7 @@
         function editTask(id) {
             const task = tasks.find(t => t.id === id);
             if (!task) return;
+            if (!currentUser) return;
 
             if (currentUser.role === 'staff') {
                 if (task.userId !== currentUser.username) {
@@ -1460,6 +1457,7 @@
         function deleteTask(id) {
             const task = tasks.find(t => t.id === id);
             if (!task) return;
+            if (!currentUser) return;
 
             if (currentUser.role === 'staff' && task.userId !== currentUser.username) {
                 showToast('ဤလုပ်ငန်းကို ဖျက်ပိုင်ခွင့်မရှိပါ။', 'error');
@@ -1513,7 +1511,7 @@
 
         // Backup ဒေတာများအား JSON ဖိုင်အဖြစ် ထုတ်ယူခြင်း (Export Data - Admin Only)
         function exportData() {
-            if (currentUser.role !== 'admin') {
+            if (!currentUser || currentUser.role !== 'admin') {
                 showToast('ဤလုပ်ဆောင်ချက်ကို လုပ်ဆောင်ရန် သင့်တွင် ခွင့်ပြုချက်မရှိပါ။', 'error');
                 return;
             }
@@ -1541,7 +1539,7 @@
 
         // JSON ဖိုင်မှ ဒေတာများ ပြန်လည်သွင်းယူခြင်း (Import Data - Admin Only)
         async function importData(event) {
-            if (currentUser.role !== 'admin') {
+            if (!currentUser || currentUser.role !== 'admin') {
                 showToast('ဒေတာ သွင်းယူခွင့် မရှိပါ။', 'error');
                 return;
             }
