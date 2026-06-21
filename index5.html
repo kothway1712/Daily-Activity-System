@@ -582,12 +582,12 @@
         // Try to setup Firebase configurations
         try {
             const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-                piKey: "AIzaSyC1Urd6J79ttP8xj8pPvVRgGeN31alpdlc",
-  authDomain: "dost-activity-system.firebaseapp.com",
-  projectId: "dost-activity-system",
-  storageBucket: "dost-activity-system.firebasestorage.app",
-  messagingSenderId: "84651568177",
-  appId: "1:84651568177:web:d27d8b63d5ff48dd3eb910"
+                apiKey: "AIzaSyC1Urd6J79ttP8xj8pPvVRgGeN31alpdlc",
+                authDomain: "dost-activity-system.firebaseapp.com",
+                projectId: "dost-activity-system",
+                storageBucket: "dost-activity-system.firebasestorage.app",
+                messagingSenderId: "84651568177",
+                appId: "1:84651568177:web:d27d8b63d5ff48dd3eb910"
             };
             const app = firebase.initializeApp(firebaseConfig);
             auth = firebase.auth();
@@ -921,13 +921,6 @@
             sunday.setHours(23, 59, 59, 999);
             
             return taskDate >= monday && taskDate <= sunday;
-        }
-
-        function isThisCalendarMonth(dateStr) {
-            const taskDate = new Date(dateStr);
-            const today = new Date();
-            return taskDate.getFullYear() === today.getFullYear() && 
-                   taskDate.getMonth() === today.getMonth();
         }
 
         // စိတ်ကြိုက်ရက်စွဲရွေးချယ်မှုအတွက် Input ဖွင့်/ပိတ်ခြင်း
