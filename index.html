@@ -8,8 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome for professional icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts for Padauk font (Burmese) -->
-    <link href="https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts for Padauk, Noto Sans Myanmar & Pyidaungsu font (Burmese Support) -->
+    <link href="https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Noto+Sans+Myanmar:wght@400;700&display=swap" rel="stylesheet">
     
     <!-- Firebase Compatibility SDKs (v10.8.0) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -18,7 +18,8 @@
 
     <style>
         body {
-            font-family: 'Padauk', sans-serif;
+            /* မြန်မာစာလုံး လေးထောင့်ကွက်မဖြစ်စေရန် Font fallback များ ထည့်သွင်းထားခြင်း */
+            font-family: 'Padauk', 'Noto Sans Myanmar', 'Pyidaungsu', sans-serif;
         }
         /* Print Styles for official looking reports */
         @media print {
@@ -163,7 +164,15 @@
                         </div>
                     </div>
                     
-                    <div class="flex items-center space-x-3">
+                    <div class="flex items-center space-x-4">
+                        <!-- Admin View Notification Icon (ခေါင်းလောင်းပုံစံ Notification အသစ်) -->
+                        <div id="admin-notif-container" class="relative hidden no-print">
+                            <button onclick="scrollToPendingRequests()" class="p-2 text-indigo-200 hover:text-white transition focus:outline-none relative">
+                                <i class="fa-solid fa-bell text-xl"></i>
+                                <span id="notif-badge" class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-bounce hidden">0</span>
+                            </button>
+                        </div>
+
                         <!-- User Status Info with Profile Edit option -->
                         <button onclick="openProfileModal()" class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-indigo-800 transition text-right no-print" title="ကိုယ်ပိုင်အချက်အလက် ပြင်ဆင်ရန်">
                             <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white shadow">
@@ -583,12 +592,12 @@
         try {
             const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
                 apiKey: "AIzaSyCbjYdVyQbb2Wg0SZBqQUsB7aktAF9sFzw",
-  authDomain: "daily-activity-system.firebaseapp.com",
-  projectId: "daily-activity-system",
-  storageBucket: "daily-activity-system.firebasestorage.app",
-  messagingSenderId: "323662160389",
-  appId: "1:323662160389:web:96b088e2555090ef5db26c",
-  measurementId: "G-ZBHMHC3NMH"
+                authDomain: "daily-activity-system.firebaseapp.com",
+                projectId: "daily-activity-system",
+                storageBucket: "daily-activity-system.firebasestorage.app",
+                messagingSenderId: "323662160389",
+                appId: "1:323662160389:web:96b088e2555090ef5db26c",
+                measurementId: "G-ZBHMHC3NMH"
             };
             const app = firebase.initializeApp(firebaseConfig);
             auth = firebase.auth();
@@ -964,6 +973,7 @@
             const backupBtn = document.getElementById('admin-db-btn');
             const searchInput = document.getElementById('search-input');
             const deptFilterContainer = document.getElementById('filter-dept-container');
+            const notifContainer = document.getElementById('admin-notif-container');
 
             if (currentUser.role === 'admin') {
                 banner.className = "mb-6 p-4 rounded-xl flex items-center justify-between bg-indigo-50 border border-indigo-100 text-indigo-900";
@@ -977,6 +987,7 @@
                     </div>
                 `;
                 backupBtn.classList.remove('hidden');
+                notifContainer.classList.remove('hidden'); // Notification bell ကိုပြရန်
                 document.getElementById('dash-total-label').textContent = "စုစုပေါင်းလုပ်ငန်း (အားလုံး)";
                 searchInput.placeholder = "လုပ်ငန်း သို့မဟုတ် ဝန်ထမ်းအမည်ဖြင့် ရှာရန်...";
                 deptFilterContainer.classList.remove('hidden');
@@ -992,12 +1003,21 @@
                     </div>
                 `;
                 backupBtn.classList.add('hidden');
+                notifContainer.classList.add('hidden'); // Notification bell ကို ဖျောက်ရန်
                 document.getElementById('dash-total-label').textContent = "ကျွန်ုပ်၏ လုပ်ငန်းအားလုံး";
                 searchInput.placeholder = "လုပ်ငန်းခေါင်းစဉ်ဖြင့် ရှာရန်...";
                 deptFilterContainer.classList.add('hidden');
             }
 
             renderTasks();
+        }
+
+        // Notification Banner သို့ Scroll ဆွဲသွားရန်
+        function scrollToPendingRequests() {
+            const banner = document.getElementById('pending-requests-banner');
+            if (banner) {
+                banner.scrollIntoView({ behavior: 'smooth' });
+            }
         }
 
         // Dashboard အရေအတွက်များကို တွက်ချက်ခြင်း
@@ -1036,24 +1056,43 @@
             document.getElementById('progress-count').textContent = visibleTasks.filter(t => t.status === 'progress').length;
             document.getElementById('completed-count').textContent = visibleTasks.filter(t => t.status === 'completed').length;
 
-            // Admin အတွက် ပြင်ဆင်ခွင့် တောင်းခံမှု သတိပေးချက်စာတန်း ထုတ်ရန်
+            // Admin အတွက် ပြင်ဆင်ခွင့် တောင်းခံမှု သတိပေးချက်စာတန်း ထုတ်ရန် (Real-time Cloud Sync)
             const pendingRequests = tasks.filter(t => t.editRequestStatus === 'pending');
             const alertBanner = document.getElementById('pending-requests-banner');
-            if (currentUser && currentUser.role === 'admin' && pendingRequests.length > 0) {
-                alertBanner.innerHTML = `
-                    <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 animate-pulse shadow-sm">
-                        <div class="flex items-center gap-3">
-                            <div class="bg-amber-500 text-white p-2 rounded-xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                            <div>
-                                <span class="font-bold text-sm md:text-base block">ပြင်ဆင်ခွင့်တောင်းဆိုမှုများ ရှိနေပါသည်</span>
-                                <span class="text-xs text-amber-700">ဝန်ထမ်းများ၏ လုပ်ငန်းပြင်ဆင်ခွင့်တောင်းခံလွှာ <strong>${pendingRequests.length}</strong> ခုအား စာရင်းဇယားတွင် ခွင့်ပြု/ငြင်းပယ် ပေးနိုင်ပါသည်။</span>
+            const notifBadge = document.getElementById('notif-badge');
+
+            if (currentUser && currentUser.role === 'admin') {
+                if (pendingRequests.length > 0) {
+                    // Alert Banner ပြသခြင်း
+                    alertBanner.innerHTML = `
+                        <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 animate-pulse shadow-sm">
+                            <div class="flex items-center gap-3">
+                                <div class="bg-amber-500 text-white p-2 rounded-xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                                <div>
+                                    <span class="font-bold text-sm md:text-base block">ပြင်ဆင်ခွင့်တောင်းဆိုမှုများ ရှိနေပါသည်</span>
+                                    <span class="text-xs text-amber-700">ဝန်ထမ်းများ၏ လုပ်ငန်းပြင်ဆင်ခွင့်တောင်းခံလွှာ <strong>${pendingRequests.length}</strong> ခုအား စာရင်းဇယားတွင် ခွင့်ပြု/ငြင်းပယ် ပေးနိုင်ပါသည်။</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-                alertBanner.classList.remove('hidden');
+                    `;
+                    alertBanner.classList.remove('hidden');
+                    
+                    // Notification Badge ကို အရေအတွက်နှင့်တကွပြသခြင်း
+                    if (notifBadge) {
+                        notifBadge.textContent = pendingRequests.length;
+                        notifBadge.classList.remove('hidden');
+                    }
+                } else {
+                    alertBanner.classList.add('hidden');
+                    if (notifBadge) {
+                        notifBadge.classList.add('hidden');
+                    }
+                }
             } else {
                 alertBanner.classList.add('hidden');
+                if (notifBadge) {
+                    notifBadge.classList.add('hidden');
+                }
             }
         }
 
@@ -1153,11 +1192,11 @@
                 if (currentUser.role === 'admin') {
                     if (task.editRequestStatus === 'pending') {
                         actionButtonsHTML += `
-                            <button onclick="approveEditRequest('${task.id}')" title="ပြင်ဆင်ခွင့်ပြုမည်" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+                            <button onclick="approveEditRequest('${task.id}')" title="ပြင်ဆင်ခွင့်ပြုမည်" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm">
                                 <i class="fa-solid fa-check"></i> ခွင့်ပြု
                             </button>
-                            <button onclick="rejectEditRequest('${task.id}')" title="ငြင်းပယ်မည်" class="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
-                                <i class="fa-solid fa-times"></i> Ngြင်းပယ်
+                            <button onclick="rejectEditRequest('${task.id}')" title="ငြင်းပယ်မည်" class="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm">
+                                <i class="fa-solid fa-times"></i> ငြင်းပယ်
                             </button>
                         `;
                     }
@@ -1293,38 +1332,50 @@
             document.getElementById('permission-modal').classList.add('hidden');
         }
 
-        // ဝန်ထမ်းမှ Admin ထံ ပြင်ဆင်ခွင့် တောင်းဆိုခြင်း
-        function submitEditRequest() {
+        // ဝန်ထမ်းမှ Admin ထံ ပြင်ဆင်ခွင့် တောင်းဆိုခြင်း (Firestore Cloud updates)
+        async function submitEditRequest() {
             const taskId = document.getElementById('permission-task-id').value;
-            const task = tasks.find(t => t.id === taskId);
-            if (task) {
-                task.editRequestStatus = 'pending';
-                localStorage.setItem('office_tasks', JSON.stringify(tasks));
-                renderTasks();
+            try {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(taskId).update({
+                    editRequestStatus: 'pending'
+                });
                 showToast('Admin ထံ ပြင်ဆင်ခွင့် တောင်းခံလွှာ ပေးပို့ပြီးပါပြီ။', 'success');
+            } catch (err) {
+                console.error("Error submitting edit request:", err);
+                showToast("တောင်းခံမှု မအောင်မြင်ပါ၊ အင်တာနက်စစ်ဆေးပါ။", "error");
             }
             closePermissionModal();
         }
 
-        // Admin မှ ပြင်ဆင်ခွင့်ပြုခြင်း (Approve)
-        function approveEditRequest(id) {
+        // Admin မှ ပြင်ဆင်ခွင့်ပြုခြင်း (Approve - Saved to Firestore)
+        async function approveEditRequest(id) {
             const task = tasks.find(t => t.id === id);
             if (task) {
-                task.editRequestStatus = 'approved';
-                localStorage.setItem('office_tasks', JSON.stringify(tasks));
-                renderTasks();
-                showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ခွင့်ပြုလိုက်ပါပြီ။`, 'success');
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(id).update({
+                        editRequestStatus: 'approved'
+                    });
+                    showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ခွင့်ပြုလိုက်ပါပြီ။`, 'success');
+                } catch (err) {
+                    console.error("Error approving request:", err);
+                    showToast("လုပ်ဆောင်မှု မအောင်မြင်ပါ", "error");
+                }
             }
         }
 
-        // Admin မှ ပြင်ဆင်ခွင့်ငြင်းပယ်ခြင်း (Reject)
-        function rejectEditRequest(id) {
+        // Admin မှ ပြင်ဆင်ခွင့်ငြင်းပယ်ခြင်း (Reject - Saved to Firestore)
+        async function rejectEditRequest(id) {
             const task = tasks.find(t => t.id === id);
             if (task) {
-                task.editRequestStatus = 'none';
-                localStorage.setItem('office_tasks', JSON.stringify(tasks));
-                renderTasks();
-                showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ငြင်းပယ်လိုက်ပါပြီ။`, 'error');
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(id).update({
+                        editRequestStatus: 'none'
+                    });
+                    showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ငြင်းပယ်လိုက်ပါပြီ။`, 'error');
+                } catch (err) {
+                    console.error("Error rejecting request:", err);
+                    showToast("လုပ်ဆောင်မှု မအောင်မြင်ပါ", "error");
+                }
             }
         }
 
@@ -1356,7 +1407,7 @@
 
             try {
                 if (id) {
-                    // ပြင်ဆင်ခြင်းလုပ်ငန်းစဉ် (Edit Existing Task)
+                    // ပြင်ဆင်ခြင်းလုပ်ငန်းစဉ် (Edit Existing Task - Firestore Sync)
                     const index = tasks.findIndex(t => t.id === id);
                     if (index !== -1) {
                         // Check ownership before editing
@@ -1365,13 +1416,15 @@
                             return;
                         }
 
-                        // ဝန်ထမ်းပြင်ဆင်ခြင်းဖြစ်ပါက editCount တိုးရန်နှင့် request ပိတ်ရန်
+                        let updatedFields = { title, desc, dept, priority, assignee, date, status };
+
+                        // ဝန်ထမ်းပြင်ဆင်ခြင်းဖြစ်ပါက editCount တိုးရန်နှင့် request ပြန်ပိတ်ရန်
                         if (currentUser.role === 'staff') {
-                            tasks[index].editCount = (tasks[index].editCount || 0) + 1;
-                            tasks[index].editRequestStatus = 'none'; // ခွင့်ပြုချက်ကို သုံးစွဲပြီးသွားပြီဖြစ်၍ ပြန်ပိတ်သည်
+                            updatedFields.editCount = (tasks[index].editCount || 0) + 1;
+                            updatedFields.editRequestStatus = 'none'; // ခွင့်ပြုချက်ကို သုံးစွဲပြီးသွားပြီဖြစ်၍ ပြန်ပိတ်သည်
                         }
 
-                        tasks[index] = { ...tasks[index], title, desc, dept, priority, assignee, date, status };
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(id).update(updatedFields);
                         showToast('လုပ်ငန်းမှတ်တမ်း ပြင်ဆင်ပြီးပါပြီ။');
                     }
                 } else {
