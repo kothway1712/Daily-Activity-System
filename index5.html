@@ -582,12 +582,13 @@
         // Try to setup Firebase configurations
         try {
             const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-                apiKey: "AIzaSyC1Urd6J79ttP8xj8pPvVRgGeN31alpdlc",
-                authDomain: "dost-activity-system.firebaseapp.com",
-                projectId: "dost-activity-system",
-                storageBucket: "dost-activity-system.firebasestorage.app",
-                messagingSenderId: "84651568177",
-                appId: "1:84651568177:web:d27d8b63d5ff48dd3eb910"
+                apiKey: "AIzaSyCbjYdVyQbb2Wg0SZBqQUsB7aktAF9sFzw",
+  authDomain: "daily-activity-system.firebaseapp.com",
+  projectId: "daily-activity-system",
+  storageBucket: "daily-activity-system.firebasestorage.app",
+  messagingSenderId: "323662160389",
+  appId: "1:323662160389:web:96b088e2555090ef5db26c",
+  measurementId: "G-ZBHMHC3NMH"
             };
             const app = firebase.initializeApp(firebaseConfig);
             auth = firebase.auth();
