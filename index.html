@@ -611,14 +611,14 @@
             try {
                 // RULE 3: Auth Before Queries - Anonymous or Token login first
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await auth.signInWithCustomToken(auth, __initial_auth_token);
+                    await auth.signInWithCustomToken(__initial_auth_token);
                 } else {
-                    await auth.signInAnonymously(auth);
+                    await auth.signInAnonymously();
                 }
             } catch (err) {
                 console.warn("Auth token failed, retrying anonymous sign-in...", err);
                 try {
-                    await auth.signInAnonymously(auth);
+                    await auth.signInAnonymously();
                 } catch (e) {
                     console.error("Firebase Auth completely failed:", e);
                 }
@@ -1230,6 +1230,8 @@
                     requestBadge = `<span class="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100 font-medium text-[10px] animate-pulse">⏳ Admin ခွင့်ပြုချက် စောင့်ဆိုင်းဆဲ</span>`;
                 } else if (task.editRequestStatus === 'approved') {
                     requestBadge = `<span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium text-[10px]">✅ ပြင်ဆင်ခွင့် ရရှိထားသည်</span>`;
+                } else if (task.editRequestStatus === 'rejected') {
+                    requestBadge = `<span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-100 font-medium text-[10px]">❌ ပြင်ဆင်ခွင့် ငြင်းပယ်ခံရသည်</span>`;
                 }
 
                 const tr = document.createElement('tr');
@@ -1369,7 +1371,7 @@
             if (task) {
                 try {
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('office_tasks').doc(id).update({
-                        editRequestStatus: 'none'
+                        editRequestStatus: 'rejected'
                     });
                     showToast(`ဝန်ထမ်း ${task.assignee} ၏ ပြင်ဆင်ခွင့်တောင်းခံမှုကို ငြင်းပယ်လိုက်ပါပြီ။`, 'error');
                 } catch (err) {
@@ -1469,7 +1471,7 @@
                     return;
                 }
 
-                if (task.editRequestStatus === 'none') {
+                if (task.editRequestStatus === 'none' || task.editRequestStatus === 'rejected') {
                     openRequestPermissionModal(id);
                     return;
                 } else if (task.editRequestStatus === 'pending') {
